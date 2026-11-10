@@ -10,7 +10,7 @@ from torch.utils.data import DataLoader
 import torch.nn.functional as F
 from tqdm import tqdm
 
-NEG_DIR = "/projects/cos-lab-aotte6/cos-4a17118/Trinity/TrinityDemonstrator/DataAnalysis/event_cleaning/Output/"
+NEG_DIR = "/projects/cos-lab-aotte6/cos-4a17118/Trinity/TrinityDemonstrator/DataAnalysis/event_cleaning/Output/DataFiles"
 POS_DIR = "/projects/cos-lab-aotte6/cos-4a17118/Trinity/TrinityDemonstrator/simdata/sofiadata/20260924_taudavid"
 
 # (Paste your CNN class, CherenkovDataset class, train_model, and evaluate_and_save functions here)
@@ -91,6 +91,15 @@ class CherenkovDataset(torch.utils.data.Dataset):
         pos_data = self._load_from_directory(pos_dir, pos_event_range)
         neg_data = self._load_from_directory(neg_dir, neg_event_range)
 
+        print(f"Loaded events: positive={len(pos_data)}, negative={len(neg_data)}")
+        if len(pos_data) == 0 or len(neg_data) == 0:
+            raise ValueError(
+                "Both classes must contain events before training. "
+                f"Positive directory: {pos_dir!r}; negative directory: {neg_dir!r}. "
+                f"Expected tree {self.tree_name!r} and branch {self.branch_name!r} "
+                "containing event-level pixel images."
+            )
+
         # Combine datasets and create binary labels (1 = Cherenkov flash, 0 = Noise)
         self.data = np.concatenate([pos_data, neg_data], axis=0)
         self.labels = np.concatenate([
@@ -131,6 +140,9 @@ class CherenkovDataset(torch.utils.data.Dataset):
 
         data_list = []
         current_event_idx = 0
+        files_with_tree = 0
+        missing_tree_files = []
+        read_errors = []
 
         for file_path in root_files:
             if current_event_idx >= end_idx:
@@ -139,8 +151,11 @@ class CherenkovDataset(torch.utils.data.Dataset):
             try:
                 with uproot.open(file_path) as file:
                     if self.tree_name not in file:
+                        if len(missing_tree_files) < 3:
+                            missing_tree_files.append((file_path, file.keys()[:8]))
                         continue
                     tree = file[self.tree_name]
+                    files_with_tree += 1
                     num_entries = tree.num_entries
 
                     # If the entire file comes before our desired start_event, skip reading its arrays
@@ -166,12 +181,24 @@ class CherenkovDataset(torch.utils.data.Dataset):
                     current_event_idx += num_entries
 
             except Exception as e:
-                print(f"Skipping {file_path} due to read error: {e}")
+                if len(read_errors) < 3:
+                    read_errors.append((file_path, str(e)))
 
         if not data_list:
-            return np.empty((0, *self.img_shape), dtype=np.float32)
+            data = np.empty((0, *self.img_shape), dtype=np.float32)
+        else:
+            data = np.concatenate(data_list, axis=0)
 
-        return np.concatenate(data_list, axis=0)
+        print(
+            f"{base_dir}: found {len(root_files)} ROOT files, "
+            f"{files_with_tree} with tree {self.tree_name!r}, loaded {len(data)} events."
+        )
+        for file_path, keys in missing_tree_files:
+            print(f"  Tree not found in {file_path}; top-level keys: {keys}")
+        for file_path, error in read_errors:
+            print(f"  Failed to read {file_path}: {error}")
+
+        return data
 
     def _format_image_shape(self, array):
         """
@@ -290,7 +317,7 @@ def evaluate_and_save(model, dataloader, device='cpu', output_file="classificati
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train and Test Cherenkov CNN Classifier")
     parser.add_argument("--pos_dir", type=str, default="/projects/cos-lab-aotte6/cos-4a17118/Trinity/TrinityDemonstrator/simdata/sofiadata/20260924_taudavid")
-    parser.add_argument("--neg_dir", type=str, default="/projects/cos-lab-aotte6/cos-4a17118/Trinity/TrinityDemonstrator/DataAnalysis/event_cleaning/Output/")
+    parser.add_argument("--neg_dir", type=str, default="/projects/cos-lab-aotte6/cos-4a17118/Trinity/TrinityDemonstrator/DataAnalysis/event_cleaning/Output/DataFiles")
     parser.add_argument("--train_start", type=int, default=1)
     parser.add_argument("--train_end", type=int, default=4000)
     parser.add_argument("--test_start", type=int, default=4001)
