@@ -290,7 +290,7 @@ def evaluate_and_save(model, dataloader, device='cpu', output_file="classificati
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train and Test Cherenkov CNN Classifier")
     parser.add_argument("--pos_dir", type=str, default="/projects/cos-lab-aotte6/cos-4a17118/Trinity/TrinityDemonstrator/simdata/sofiadata/20260924_taudavid")
-    parser.add_argument("--neg_dir", type=str, default="/projects/cos-lab-aotte6/cos-4a17118/Trinity/TrinityDemonstratorDataAnalysis/event_cleaning/Output/")
+    parser.add_argument("--neg_dir", type=str, default="/projects/cos-lab-aotte6/cos-4a17118/Trinity/TrinityDemonstrator/DataAnalysis/event_cleaning/Output/")
     parser.add_argument("--train_start", type=int, default=1)
     parser.add_argument("--train_end", type=int, default=4000)
     parser.add_argument("--test_start", type=int, default=4001)
