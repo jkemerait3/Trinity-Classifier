@@ -8,6 +8,7 @@ import torch
 from torch import nn, optim
 from torch.utils.data import DataLoader
 import torch.nn.functional as F
+import tqdm
 
 NEG_DIR = "/projects/cos-lab-aotte6/cos-4a17118/Trinity/TrinityDemonstrator/DataAnalysis/event_cleaning/Output/"
 POS_DIR = "/projects/cos-lab-aotte6/cos-4a17118/Trinity/TrinityDemonstrator/simdata/sofiadata/20260924_taudavid"
