@@ -18,7 +18,7 @@ OUT_DIR="$WORK_DIR/runs/$RUN_NAME"
 mkdir -p "$OUT_DIR"
 
 # 2. Configure your training/testing parameters here
-POS_DIR="/path/to/your/pos_data"
+POS_DIR="/projects/cos-lab-aotte6/cos-4a17118/Trinity/TrinityDemonstrator/simdata/sofiadata/20260924_taudavid"
 NEG_DIR="/projects/cos-lab-aotte6/cos-4a17118/Trinity/TrinityDemonstratorDataAnalysis/event_cleaning/Output/"
 TRAIN_START=1
 TRAIN_END=4000

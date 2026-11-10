@@ -9,6 +9,9 @@ from torch import nn, optim
 from torch.utils.data import DataLoader
 import torch.nn.functional as F
 
+NEG_DIR = "/projects/cos-lab-aotte6/cos-4a17118/Trinity/TrinityDemonstratorDataAnalysis/event_cleaning/Output/"
+POS_DIR = "/projects/cos-lab-aotte6/cos-4a17118/Trinity/TrinityDemonstrator/simdata/sofiadata/20260924_taudavid"
+
 # (Paste your CNN class, CherenkovDataset class, train_model, and evaluate_and_save functions here)
 # Note: In train_model() and evaluate_and_save(), remove `tqdm(...)` or pass `disable=True` 
 # so your Condor .err log file doesn't fill up with thousands of progress bar lines!
@@ -171,18 +174,35 @@ class CherenkovDataset(torch.utils.data.Dataset):
 
     def _format_image_shape(self, array):
         """
-        Ensures extracted arrays match the (N, C, H, W) shape expected by Conv2d.
-        Pads with zeros if the raw pixel array is smaller than 18x18 (e.g., 256 pixels -> 324).
+        Unpacks uproot object arrays (arrays of per-event 1D arrays) into a 
+        contiguous 2D float32 matrix before padding and reshaping to (N, C, H, W).
         """
         num_samples = len(array)
+        if num_samples == 0:
+            return np.empty((0, *self.img_shape), dtype=np.float32)
+
         target_pixels = np.prod(self.img_shape)
 
-        # Flatten each event's pixel readings to 1D first
-        flat_array = array.reshape(num_samples, -1)
-        current_pixels = flat_array.shape[1]
+        # If uproot returned an array of objects (1D array per event), stack or pad them
+        if array.dtype == object:
+            # Check if all events in this file have the exact same number of pixels
+            lengths = [len( np.ravel(x) ) for x in array]
+            if len(set(lengths)) == 1 and lengths[0] > 0:
+                flat_array = np.vstack([np.ravel(x) for x in array]).astype(np.float32)
+            else:
+                # Jagged events (variable length per event): copy into a pre-allocated float32 matrix
+                flat_array = np.zeros((num_samples, target_pixels), dtype=np.float32)
+                for i, ev in enumerate(array):
+                    ev_flat = np.asarray(ev, dtype=np.float32).ravel()
+                    n_copy = min(len(ev_flat), target_pixels)
+                    flat_array[i, :n_copy] = ev_flat[:n_copy]
+                return flat_array.reshape(num_samples, *self.img_shape)
+        else:
+            flat_array = np.asarray(array, dtype=np.float32).reshape(num_samples, -1)
 
+        # Pad or truncate uniform arrays to match target_pixels (e.g., 256 -> 324 for 18x18)
+        current_pixels = flat_array.shape[1]
         if current_pixels < target_pixels:
-            # Zero-pad to 324 pixels (18x18) if camera has fewer pixels (e.g., 256)
             pad_width = target_pixels - current_pixels
             flat_array = np.pad(flat_array, ((0, 0), (0, pad_width)), mode='constant', constant_values=0)
         elif current_pixels > target_pixels:
@@ -268,7 +288,7 @@ def evaluate_and_save(model, dataloader, device='cpu', output_file="classificati
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train and Test Cherenkov CNN Classifier")
-    parser.add_argument("--pos_dir", type=str, default="/path/to/pos_data")
+    parser.add_argument("--pos_dir", type=str, default="/projects/cos-lab-aotte6/cos-4a17118/Trinity/TrinityDemonstrator/simdata/sofiadata/20260924_taudavid")
     parser.add_argument("--neg_dir", type=str, default="/projects/cos-lab-aotte6/cos-4a17118/Trinity/TrinityDemonstratorDataAnalysis/event_cleaning/Output/")
     parser.add_argument("--train_start", type=int, default=1)
     parser.add_argument("--train_end", type=int, default=4000)
